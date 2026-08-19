@@ -101,7 +101,6 @@
   .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:.78rem;color:var(--muted);}
   .legend span{display:flex;align-items:center;gap:6px;}
   .legend .swatch{width:11px;height:11px;border-radius:3px;display:inline-block;}
-  .legend .swatch.budget{background:rgba(154,163,181,0.28);border:1px solid var(--muted);}
   .legend .swatch.actual{background:var(--accent);}
   .legend .swatch.line{background:none;border-top:2px dashed var(--yellow);width:14px;height:0;border-radius:0;}
   #chartPeriodSelect{width:auto;min-width:170px;}
@@ -278,20 +277,10 @@
       <section id="tab-charts" class="hidden">
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
-            <h2 style="margin:0;">Budgeted vs actual</h2>
+            <h2 style="margin:0;">Spending breakdown</h2>
             <select id="chartPeriodSelect"></select>
           </div>
           <p class="sub" id="chartPeriodSub" style="margin:-4px 0 12px;"></p>
-          <div id="budgetActualChart" class="chart-wrap"></div>
-          <div class="legend">
-            <span><i class="swatch budget"></i> Budgeted</span>
-            <span><i class="swatch actual"></i> Actual spent</span>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2 style="margin:0 0 4px;">Spending breakdown</h2>
-          <p class="sub" style="margin:-4px 0 12px;">Where the selected pay week's expenses went.</p>
           <div id="donutChart" class="chart-wrap"></div>
         </div>
 
@@ -1006,52 +995,6 @@
     return nice*mag;
   }
   function fmtShort(v){ return "$"+Math.round(v); }
-  function truncateLabel(s,n){ return s.length>n ? s.slice(0,n-1)+"…" : s; }
-
-  function buildBudgetActualChart(categories, expenseTxns){
-    const data = categories.map((c,i)=>{
-      const spent = expenseTxns.filter(t=>t.categoryId===c.id).reduce((s,t)=>s+t.amount,0);
-      return {name:c.name, budget:c.amount, actual:spent, color: catColor(i)};
-    });
-    const W = Math.max(480, data.length*100);
-    const H = 270;
-    const padL=42,padR=16,padT=24,padB=40;
-    const chartW = W-padL-padR, chartH = H-padT-padB;
-    const maxVal = Math.max(1, ...data.flatMap(d=>[d.budget,d.actual]));
-    const niceMax = niceCeil(maxVal);
-    const groupW = chartW/Math.max(1,data.length);
-    const barW = Math.min(30, groupW/3.4);
-    const gap = 6;
-
-    let gridLines = "";
-    for(let g=0; g<=4; g++){
-      const y = padT + chartH - (chartH*g/4);
-      const val = niceMax*g/4;
-      gridLines += `<line class="grid-line" x1="${padL}" y1="${y}" x2="${padL+chartW}" y2="${y}"/>`;
-      gridLines += `<text class="bar-label" x="${padL-6}" y="${y+3}" text-anchor="end">${fmtShort(val)}</text>`;
-    }
-
-    let bars = "";
-    data.forEach((d,i)=>{
-      const cx = padL + groupW*i + groupW/2;
-      const budgetH = (d.budget/niceMax)*chartH;
-      const actualH = (d.actual/niceMax)*chartH;
-      const over = d.actual > d.budget && d.budget>0;
-      const x1 = cx - barW - gap/2;
-      const x2 = cx + gap/2;
-      bars += `<rect x="${x1}" y="${padT+chartH-budgetH}" width="${barW}" height="${budgetH}" fill="rgba(154,163,181,0.28)" stroke="var(--muted)" stroke-width="1" rx="2"/>`;
-      bars += `<rect x="${x2}" y="${padT+chartH-actualH}" width="${barW}" height="${actualH}" fill="${over?'var(--red)':d.color}" rx="2"/>`;
-      bars += `<text class="bar-label" x="${cx}" y="${padT+chartH+18}" text-anchor="middle">${escapeHtml(truncateLabel(d.name,11))}</text>`;
-      if(d.budget>0) bars += `<text class="val-label" x="${x1+barW/2}" y="${Math.max(padT+10,padT+chartH-budgetH-5)}" text-anchor="middle">${Math.round(d.budget)}</text>`;
-      if(d.actual>0) bars += `<text class="val-label" x="${x2+barW/2}" y="${Math.max(padT+10,padT+chartH-actualH-5)}" text-anchor="middle">${Math.round(d.actual)}</text>`;
-    });
-
-    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-      ${gridLines}
-      <line class="axis-line" x1="${padL}" y1="${padT+chartH}" x2="${padL+chartW}" y2="${padT+chartH}"/>
-      ${bars}
-    </svg>`;
-  }
 
   function buildTrendChart(){
     const starts = getAllPeriodStarts();
@@ -1142,27 +1085,15 @@
     return `<div class="donut-flex">${svg}<div class="donut-legend">${legend}</div></div>`;
   }
 
-  function renderDonutChartUI(startISO){
+  function renderDonutChartUI(){
+    const sel = document.getElementById("chartPeriodSelect");
+    const startISO = sel.value || toISO(currentPeriodStart());
     const startDate = parseISO(startISO);
+    document.getElementById("chartPeriodSub").textContent = "Pay week: " + periodLabel(startDate);
     const expenseTxns = txnsInPeriod(startDate).filter(t=>t.type==="expense");
     const wrap = document.getElementById("donutChart");
     const html = buildDonutChart(state.categories, expenseTxns);
     wrap.innerHTML = html || '<div class="chart-empty">No expenses logged this pay week yet.</div>';
-  }
-
-  function renderBudgetActualChart(){
-    const sel = document.getElementById("chartPeriodSelect");
-    const startISO = sel.value || toISO(currentPeriodStart());
-    const startDate = parseISO(startISO);
-    const expenseTxns = txnsInPeriod(startDate).filter(t=>t.type==="expense");
-    document.getElementById("chartPeriodSub").textContent = "Pay week: " + periodLabel(startDate);
-    const wrap = document.getElementById("budgetActualChart");
-    if(state.categories.length===0){
-      wrap.innerHTML = '<div class="chart-empty">Add some budget categories in Settings first.</div>';
-    } else {
-      wrap.innerHTML = buildBudgetActualChart(state.categories, expenseTxns);
-    }
-    renderDonutChartUI(startISO);
   }
 
   function renderTrendChartUI(){
@@ -1180,12 +1111,12 @@
       `<option value="${s}">${periodLabel(parseISO(s))}${s===curStart?" (current)":""}</option>`
     ).join("");
     sel.value = starts.includes(prevSelected) ? prevSelected : curStart;
-    renderBudgetActualChart();
+    renderDonutChartUI();
     renderTrendChartUI();
   }
 
   function setupChartsTab(){
-    document.getElementById("chartPeriodSelect").addEventListener("change", renderBudgetActualChart);
+    document.getElementById("chartPeriodSelect").addEventListener("change", renderDonutChartUI);
   }
 
   // ---------- ACCOUNTS (savings / investments) ----------
