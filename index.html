@@ -109,6 +109,10 @@
   .cat-edit-bottom{display:flex;gap:10px;align-items:center;}
   .cat-edit-bottom input[type=number]{flex:1;}
   .rollover-label{display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);white-space:nowrap;cursor:pointer;flex:none;}
+  .cat-edit-link{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+  .cat-edit-link label{margin:0;font-size:.72rem;color:var(--muted);white-space:nowrap;font-weight:600;}
+  .cat-edit-link select{width:auto;flex:1;font-size:.8rem;padding:7px 9px;}
+  .badge-link{font-size:.68rem;color:var(--green);border:1px solid var(--green);border-radius:5px;padding:0 5px;margin-left:5px;}
   .rollover-label input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);cursor:pointer;}
   .badge-rollover{font-size:.68rem;color:var(--accent2);border:1px solid var(--accent2);border-radius:5px;padding:0 5px;margin-left:5px;}
   .donut-flex{display:flex;gap:20px;flex-wrap:wrap;align-items:center;}
@@ -394,6 +398,7 @@
     {name:"Gas", amount:50, rollover:false, emoji:"⛽"},
     {name:"Fun & Entertainment", amount:0, rollover:false, emoji:"🎉"},
     {name:"Savings", amount:0, rollover:true, emoji:"💰"},
+    {name:"Investments", amount:0, rollover:true, emoji:"📈"},
     {name:"Other", amount:0, rollover:false, emoji:"🧾"},
   ];
 
@@ -463,7 +468,17 @@
 
   // ---------- SETUP SCREEN ----------
   // Shared row markup + event wiring for any editable list of {name,amount,rollover} categories.
-  function catRowHTML(c, i){
+  // `accounts` is optional — pass state.accounts to offer account linking (Settings), or omit
+  // during first-time Setup where no accounts exist yet.
+  function catRowHTML(c, i, accounts){
+    const linkField = (accounts && accounts.length>0) ? `
+      <div class="cat-edit-link">
+        <label>Add spending here to:</label>
+        <select data-idx="${i}" data-field="linkedAccountId">
+          <option value="">— No account link —</option>
+          ${accounts.map(a=>`<option value="${a.id}" ${c.linkedAccountId===a.id?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
+        </select>
+      </div>` : "";
     return `
       <div class="cat-edit-top">
         <input type="text" class="cat-emoji-input" maxlength="4" value="${escapeAttr(c.emoji||"💳")}" data-idx="${i}" data-field="emoji" title="Emoji icon">
@@ -476,6 +491,7 @@
           <input type="checkbox" data-idx="${i}" data-field="rollover" ${c.rollover ? "checked" : ""}> Rollover
         </label>
       </div>
+      ${linkField}
     `;
   }
   function bindCatRowEvents(wrap, catsArr, onChange, onRemove){
@@ -486,6 +502,13 @@
         const field = e.target.dataset.field;
         if(field==="rollover") catsArr[idx][field] = e.target.checked;
         else catsArr[idx][field] = field==="amount" ? (+e.target.value||0) : e.target.value;
+        if(onChange) onChange();
+      });
+    });
+    wrap.querySelectorAll("select[data-field=linkedAccountId]").forEach(sel=>{
+      sel.addEventListener("change", (e)=>{
+        const idx = +e.target.dataset.idx;
+        catsArr[idx].linkedAccountId = e.target.value || null;
         if(onChange) onChange();
       });
     });
@@ -536,15 +559,23 @@
       e.preventDefault();
       const pay = +document.getElementById("setupPay").value || 0;
       const payday = +document.getElementById("setupPayday").value;
-      const cats = setupCats.filter(c=>c.name.trim()!=="").map(c=>({id:uid(), name:c.name.trim(), amount:+c.amount||0, rollover:!!c.rollover, emoji:c.emoji||"💳"}));
+      const savingsAccountId = uid();
+      const investmentsAccountId = uid();
+      const cats = setupCats.filter(c=>c.name.trim()!=="").map(c=>{
+        const nameLower = c.name.trim().toLowerCase();
+        let linkedAccountId = null;
+        if(nameLower==="savings") linkedAccountId = savingsAccountId;
+        else if(nameLower==="investments") linkedAccountId = investmentsAccountId;
+        return {id:uid(), name:c.name.trim(), amount:+c.amount||0, rollover:!!c.rollover, emoji:c.emoji||"💳", linkedAccountId};
+      });
       state = {
         settings:{ weeklyPay: pay, payWeekday: payday },
         categories: cats,
         transactions: [],
         recurring: [],
         accounts: [
-          {id:uid(), name:"Savings", balance:0},
-          {id:uid(), name:"Investments", balance:0}
+          {id:savingsAccountId, name:"Savings", balance:0},
+          {id:investmentsAccountId, name:"Investments", balance:0}
         ],
         accountHistory: []
       };
@@ -648,11 +679,12 @@
       const pct = effBudget > 0 ? Math.min(100, (spentInCat/effBudget)*100) : (spentInCat>0?100:0);
       const over = spentInCat > effBudget;
       const color = over ? "var(--red)" : (pct>80 ? "var(--yellow)" : catColor(i));
+      const linkedAcc = categoryLinkedAccount(cat.id);
       const row = document.createElement("div");
       row.className = "cat-row";
       row.innerHTML = `
         <div class="cat-top">
-          <span class="cat-name"><span class="dot" style="background:${catColor(i)}"></span>${escapeHtml(cat.name)}${cat.rollover ? '<span class="badge-rollover" title="Unused budget rolls over week to week">↻</span>' : ""}</span>
+          <span class="cat-name"><span class="dot" style="background:${catColor(i)}"></span>${escapeHtml(cat.name)}${cat.rollover ? '<span class="badge-rollover" title="Unused budget rolls over week to week">↻</span>' : ""}${linkedAcc ? `<span class="badge-link" title="Spending here also adds to your ${escapeAttr(linkedAcc.name)} account balance">🔗 ${escapeHtml(linkedAcc.name)}</span>` : ""}</span>
           <span class="cat-amounts">${fmtMoney(spentInCat)} / ${fmtMoney(effBudget)}${over ? ` <b style="color:var(--red)">(over ${fmtMoney(spentInCat-effBudget)})</b>` : ""}</span>
         </div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
@@ -720,6 +752,9 @@
     el.querySelector("[data-edit]").addEventListener("click", ()=> startEditTxn(t));
     el.querySelector("[data-del]").addEventListener("click", ()=>{
       if(confirm("Delete this transaction?")){
+        if(t.type==="expense" && t.categoryId && applyCategoryAccountDelta(t.categoryId, -t.amount)){
+          recordAccountSnapshot();
+        }
         state.transactions = state.transactions.filter(x=>x.id!==t.id);
         saveData();
         renderDashboard();
@@ -788,15 +823,23 @@
       const note = document.getElementById("txnNote").value.trim();
       if(!amount || amount<=0) return;
 
+      let accountsTouched = false;
       if(editingTxnId){
         const existing = state.transactions.find(x=>x.id===editingTxnId);
         if(existing){
+          // Undo whatever effect the old version had on a linked account before applying the new one.
+          if(existing.type==="expense" && existing.categoryId){
+            if(applyCategoryAccountDelta(existing.categoryId, -existing.amount)) accountsTouched = true;
+          }
           existing.type = currentTxnType;
           existing.amount = amount;
           existing.date = date;
           existing.note = note;
           if(currentTxnType==="expense") existing.categoryId = document.getElementById("txnCategory").value;
           else delete existing.categoryId;
+          if(existing.type==="expense" && existing.categoryId){
+            if(applyCategoryAccountDelta(existing.categoryId, amount)) accountsTouched = true;
+          }
         }
         stopEditTxn();
       } else {
@@ -816,6 +859,13 @@
           });
         }
         state.transactions.push(txn);
+        if(txn.type==="expense" && txn.categoryId){
+          if(applyCategoryAccountDelta(txn.categoryId, amount)) accountsTouched = true;
+        }
+      }
+      if(accountsTouched){
+        recordAccountSnapshot();
+        renderDashboardAccountsSummary();
       }
       saveData();
       renderAddTab();
@@ -831,6 +881,7 @@
   function materializeRecurring(){
     if(!state.recurring || state.recurring.length===0) return;
     let changed = false;
+    let accountsTouched = false;
     const curStart = toISO(currentPeriodStart());
     state.recurring.filter(r=>r.active).forEach(r=>{
       let cursor = parseISO(r.createdPeriod);
@@ -843,10 +894,14 @@
           if(r.type==="expense") txn.categoryId = r.categoryId;
           state.transactions.push(txn);
           changed = true;
+          if(txn.type==="expense" && txn.categoryId && applyCategoryAccountDelta(txn.categoryId, txn.amount)){
+            accountsTouched = true;
+          }
         }
         cursor = addDays(cursor,7);
       }
     });
+    if(accountsTouched) recordAccountSnapshot();
     if(changed) saveData();
   }
 
@@ -1087,6 +1142,24 @@
   function accountsTotal(){
     return state.accounts.reduce((s,a)=>s+(+a.balance||0),0);
   }
+
+  // Category ↔ account linking: an expense logged under a category linked to an account
+  // (e.g. the "Savings" category linked to the "Savings" account) moves that money into
+  // the account balance too — logging it isn't just budget tracking, it's the deposit.
+  function categoryLinkedAccount(categoryId){
+    if(!categoryId) return null;
+    const cat = state.categories.find(c=>c.id===categoryId);
+    if(!cat || !cat.linkedAccountId) return null;
+    return state.accounts.find(a=>a.id===cat.linkedAccountId) || null;
+  }
+  // Returns true if an account balance was actually touched (caller uses this to know
+  // whether a snapshot needs recording).
+  function applyCategoryAccountDelta(categoryId, delta){
+    const acc = categoryLinkedAccount(categoryId);
+    if(!acc) return false;
+    acc.balance = (+acc.balance||0) + delta;
+    return true;
+  }
   function recordAccountSnapshot(){
     const total = accountsTotal();
     const today = todayISO();
@@ -1290,7 +1363,7 @@
   }
   function renderCatEditRows(){
     const wrap = document.getElementById("settingsCategories");
-    wrap.innerHTML = settingsCatsDraft.map((c,i)=>`<div class="cat-edit-row">${catRowHTML(c,i)}</div>`).join("");
+    wrap.innerHTML = settingsCatsDraft.map((c,i)=>`<div class="cat-edit-row">${catRowHTML(c,i,state.accounts)}</div>`).join("");
     bindCatRowEvents(wrap, settingsCatsDraft, updateSettingsNote, (idx)=>{
       const cat = settingsCatsDraft[idx];
       const used = state.transactions.some(t=>t.categoryId===cat.id);
@@ -1323,13 +1396,13 @@
       alert("Saved.");
     });
     document.getElementById("settingsAddCat").addEventListener("click",()=>{
-      settingsCatsDraft.push({id:uid(), name:"", amount:0, rollover:false, emoji:"💳"});
+      settingsCatsDraft.push({id:uid(), name:"", amount:0, rollover:false, emoji:"💳", linkedAccountId:null});
       renderCatEditRows();
     });
     document.getElementById("saveCatSettings").addEventListener("click",()=>{
       state.categories = settingsCatsDraft
         .filter(c=>c.name.trim()!=="")
-        .map(c=> ({id: c.id || uid(), name:c.name.trim(), amount:+c.amount||0, rollover:!!c.rollover, emoji:(c.emoji||"💳").trim()||"💳"}));
+        .map(c=> ({id: c.id || uid(), name:c.name.trim(), amount:+c.amount||0, rollover:!!c.rollover, emoji:(c.emoji||"💳").trim()||"💳", linkedAccountId:c.linkedAccountId||null}));
       saveData();
       renderSettingsTab();
       renderDashboard();
