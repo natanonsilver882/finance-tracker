@@ -403,6 +403,7 @@
   const DEFAULT_CATEGORIES = [
     {name:"Rent & Bills", amount:0, rollover:false, emoji:"🏠"},
     {name:"Groceries", amount:0, rollover:false, emoji:"🛒"},
+    {name:"Takeout", amount:0, rollover:false, emoji:"🥡"},
     {name:"Transport", amount:0, rollover:false, emoji:"🚌"},
     {name:"Gas", amount:50, rollover:false, emoji:"⛽"},
     {name:"Fun & Entertainment", amount:0, rollover:false, emoji:"🎉"},
@@ -451,6 +452,12 @@
         id: uid(), name: "Investments", amount: 0, rollover: true, emoji: "📈",
         linkedAccountId: investAcc ? investAcc.id : null
       });
+      changed = true;
+    }
+
+    // Backfill a "Takeout" budget category for setups created before it was a default.
+    if(!state.categories.some(c=>c.name.toLowerCase()==="takeout")){
+      state.categories.push({id: uid(), name: "Takeout", amount: 0, rollover: false, emoji: "🥡", linkedAccountId: null});
       changed = true;
     }
 
