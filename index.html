@@ -675,17 +675,23 @@
     }
     state.categories.forEach((cat, i)=>{
       const spentInCat = expenseTxns.filter(t=>t.categoryId===cat.id).reduce((s,t)=>s+t.amount,0);
-      const effBudget = getCategoryEffectiveBudget(cat, startISO);
-      const pct = effBudget > 0 ? Math.min(100, (spentInCat/effBudget)*100) : (spentInCat>0?100:0);
-      const over = spentInCat > effBudget;
-      const color = over ? "var(--red)" : (pct>80 ? "var(--yellow)" : catColor(i));
+      // A category with no weekly amount set has no ceiling to exceed — never flag it red/over,
+      // and don't bother computing rollover for it (there's no base allocation to carry forward).
+      const hasBudget = cat.amount > 0;
+      const effBudget = hasBudget ? getCategoryEffectiveBudget(cat, startISO) : 0;
+      const pct = hasBudget ? (effBudget > 0 ? Math.min(100, (spentInCat/effBudget)*100) : (spentInCat>0?100:0)) : 0;
+      const over = hasBudget && spentInCat > effBudget;
+      const color = over ? "var(--red)" : (hasBudget && pct>80 ? "var(--yellow)" : catColor(i));
       const linkedAcc = categoryLinkedAccount(cat.id);
+      const amountsText = hasBudget
+        ? `${fmtMoney(spentInCat)} / ${fmtMoney(effBudget)}${over ? ` <b style="color:var(--red)">(over ${fmtMoney(spentInCat-effBudget)})</b>` : ""}`
+        : `${fmtMoney(spentInCat)} <span style="color:var(--muted);">(no budget set)</span>`;
       const row = document.createElement("div");
       row.className = "cat-row";
       row.innerHTML = `
         <div class="cat-top">
           <span class="cat-name"><span class="dot" style="background:${catColor(i)}"></span>${escapeHtml(cat.name)}${cat.rollover ? '<span class="badge-rollover" title="Unused budget rolls over week to week">↻</span>' : ""}${linkedAcc ? `<span class="badge-link" title="Spending here also adds to your ${escapeAttr(linkedAcc.name)} account balance">🔗 ${escapeHtml(linkedAcc.name)}</span>` : ""}</span>
-          <span class="cat-amounts">${fmtMoney(spentInCat)} / ${fmtMoney(effBudget)}${over ? ` <b style="color:var(--red)">(over ${fmtMoney(spentInCat-effBudget)})</b>` : ""}</span>
+          <span class="cat-amounts">${amountsText}</span>
         </div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
       `;
