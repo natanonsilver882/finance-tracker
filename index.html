@@ -11,6 +11,13 @@
     --green:#22c55e; --yellow:#f59e0b; --red:#ef4444; --radius:14px;
   }
   *{box-sizing:border-box;}
+  /* Prevent taps on buttons/labels from being swallowed as a text-selection gesture on mobile,
+     and cut the ~300ms tap delay so taps register immediately. */
+  button, label{
+    touch-action:manipulation;
+    -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:var(--bg);color:var(--text);}
   #app{max-width:880px;margin:0 auto;padding:20px 16px 80px;}
@@ -41,7 +48,7 @@
   label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;font-weight:600;}
   input[type=text],input[type=number],input[type=date],select{
     width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);
-    padding:10px 11px;border-radius:9px;font-size:.9rem;}
+    padding:10px 11px;border-radius:9px;font-size:16px;}
   input:focus,select:focus{outline:1px solid var(--accent);}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .btn{background:var(--accent);color:#fff;border:none;padding:10px 16px;border-radius:9px;font-size:.88rem;
@@ -111,7 +118,7 @@
   .rollover-label{display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--muted);white-space:nowrap;cursor:pointer;flex:none;}
   .cat-edit-link{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
   .cat-edit-link label{margin:0;font-size:.72rem;color:var(--muted);white-space:nowrap;font-weight:600;}
-  .cat-edit-link select{width:auto;flex:1;font-size:.8rem;padding:7px 9px;}
+  .cat-edit-link select{width:auto;flex:1;font-size:16px;padding:7px 9px;}
   .badge-link{font-size:.68rem;color:var(--green);border:1px solid var(--green);border-radius:5px;padding:0 5px;margin-left:5px;}
   .rollover-label input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);cursor:pointer;}
   .badge-rollover{font-size:.68rem;color:var(--accent2);border:1px solid var(--accent2);border-radius:5px;padding:0 5px;margin-left:5px;}
@@ -141,6 +148,8 @@
     .row2{grid-template-columns:1fr;}
     .rollover-label{font-size:.62rem;}
     .donut-flex svg{width:150px;height:150px;}
+    .cat-row .cat-top{flex-direction:column;align-items:flex-start;gap:3px;}
+    .badge-rollover,.badge-link{font-size:.62rem;}
   }
 </style>
 </head>
@@ -422,6 +431,30 @@
     if(!Array.isArray(state.recurring)) state.recurring = [];
     if(!Array.isArray(state.accounts)) state.accounts = [];
     if(!Array.isArray(state.accountHistory)) state.accountHistory = [];
+
+    // Backfill a Savings/Investments account pair for data saved before the Accounts feature existed.
+    let changed = false;
+    if(!state.accounts.some(a=>a.name.toLowerCase()==="savings")){
+      state.accounts.push({id:uid(), name:"Savings", balance:0});
+      changed = true;
+    }
+    if(!state.accounts.some(a=>a.name.toLowerCase()==="investments")){
+      state.accounts.push({id:uid(), name:"Investments", balance:0});
+      changed = true;
+    }
+
+    // Backfill an "Investments" budget category for setups created before it was a default,
+    // linked to the Investments account so spending there tracks the balance automatically.
+    if(!state.categories.some(c=>c.name.toLowerCase()==="investments")){
+      const investAcc = state.accounts.find(a=>a.name.toLowerCase()==="investments");
+      state.categories.push({
+        id: uid(), name: "Investments", amount: 0, rollover: true, emoji: "📈",
+        linkedAccountId: investAcc ? investAcc.id : null
+      });
+      changed = true;
+    }
+
+    if(changed) saveData();
   }
 
   let state = loadData();
