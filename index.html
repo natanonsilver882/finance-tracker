@@ -646,15 +646,19 @@
 
     const incomeTxns = txns.filter(t=>t.type==="income");
     const expenseTxns = txns.filter(t=>t.type==="expense");
+    // Expected weekly pay is a standing baseline, not a fallback — any income you log (a bonus,
+    // side income, extra shift) adds on top of it instead of replacing it.
     const actualIncome = incomeTxns.reduce((s,t)=>s+t.amount,0);
-    const income = actualIncome > 0 ? actualIncome : state.settings.weeklyPay;
+    const income = state.settings.weeklyPay + actualIncome;
     const spent = expenseTxns.reduce((s,t)=>s+t.amount,0);
     const remaining = income - spent;
 
     const today = new Date(); today.setHours(0,0,0,0);
     const daysLeft = Math.max(0, Math.round((end - today)/86400000) + 1);
 
-    document.getElementById("statIncome").textContent = fmtMoney(income) + (actualIncome>0 ? "" : " (expected)");
+    document.getElementById("statIncome").textContent = actualIncome>0
+      ? `${fmtMoney(income)} (+${fmtMoney(actualIncome)} logged)`
+      : `${fmtMoney(income)} (expected)`;
     document.getElementById("statSpent").textContent = fmtMoney(spent);
     const remEl = document.getElementById("statRemaining");
     remEl.textContent = fmtMoney(remaining);
@@ -1334,7 +1338,7 @@
       const incomeTxns = txns.filter(t=>t.type==="income");
       const expenseTxns = txns.filter(t=>t.type==="expense");
       const actualIncome = incomeTxns.reduce((s,t)=>s+t.amount,0);
-      const income = actualIncome>0 ? actualIncome : (startISO===curStart ? state.settings.weeklyPay : 0);
+      const income = state.settings.weeklyPay + actualIncome;
       const spent = expenseTxns.reduce((s,t)=>s+t.amount,0);
 
       const block = document.createElement("div");
