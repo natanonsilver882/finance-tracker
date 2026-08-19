@@ -94,8 +94,8 @@
   footer.credits{text-align:center;color:var(--muted);font-size:.72rem;margin-top:24px;}
   .chart-wrap{width:100%;overflow-x:auto;}
   .chart-wrap svg{display:block;min-width:100%;}
-  .chart-wrap .bar-label{fill:var(--muted);font-size:10px;font-family:inherit;}
-  .chart-wrap .val-label{fill:var(--text);font-size:10px;font-family:inherit;font-weight:600;}
+  .chart-wrap .bar-label{fill:var(--muted);font-size:11px;font-family:inherit;}
+  .chart-wrap .val-label{fill:var(--text);font-size:11px;font-family:inherit;font-weight:600;}
   .chart-wrap .axis-line{stroke:var(--border);stroke-width:1;}
   .chart-wrap .grid-line{stroke:var(--border);stroke-width:1;stroke-dasharray:3 3;opacity:.6;}
   .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:.78rem;color:var(--muted);}
@@ -123,7 +123,7 @@
   .rollover-label input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);cursor:pointer;}
   .badge-rollover{font-size:.68rem;color:var(--accent2);border:1px solid var(--accent2);border-radius:5px;padding:0 5px;margin-left:5px;}
   .donut-flex{display:flex;gap:20px;flex-wrap:wrap;align-items:center;}
-  .donut-flex svg{flex-shrink:0;width:180px;height:180px;}
+  .donut-flex svg{flex-shrink:0;width:220px;height:220px;}
   .donut-legend{flex:1;min-width:180px;display:flex;flex-direction:column;gap:8px;}
   .donut-legend-row{display:flex;align-items:center;gap:8px;font-size:.83rem;}
   .donut-legend-row .name{flex:1;}
@@ -147,7 +147,7 @@
   @media (max-width:520px){
     .row2{grid-template-columns:1fr;}
     .rollover-label{font-size:.62rem;}
-    .donut-flex svg{width:150px;height:150px;}
+    .donut-flex svg{width:190px;height:190px;}
     .cat-row .cat-top{flex-direction:column;align-items:flex-start;gap:3px;}
     .badge-rollover,.badge-link{font-size:.62rem;}
   }
@@ -292,7 +292,7 @@
         <div class="card">
           <h2 style="margin:0 0 4px;">Spending breakdown</h2>
           <p class="sub" style="margin:-4px 0 12px;">Where the selected pay week's expenses went.</p>
-          <div id="donutChart"></div>
+          <div id="donutChart" class="chart-wrap"></div>
         </div>
 
         <div class="card">
@@ -1006,8 +1006,8 @@
       const spent = expenseTxns.filter(t=>t.categoryId===c.id).reduce((s,t)=>s+t.amount,0);
       return {name:c.name, budget:c.amount, actual:spent, color: catColor(i)};
     });
-    const W = Math.max(560, data.length*110);
-    const H = 240;
+    const W = Math.max(480, data.length*100);
+    const H = 270;
     const padL=42,padR=16,padT=24,padB=40;
     const chartW = W-padL-padR, chartH = H-padT-padB;
     const maxVal = Math.max(1, ...data.flatMap(d=>[d.budget,d.actual]));
@@ -1058,8 +1058,8 @@
     const anyData = data.some(d=>d.spent>0) || state.settings.weeklyPay>0;
     if(!anyData) return null;
 
-    const W = Math.max(420, data.length*90);
-    const H = 240;
+    const W = Math.max(360, data.length*80);
+    const H = 270;
     const padL=42,padR=16,padT=24,padB=40;
     const chartW = W-padL-padR, chartH = H-padT-padB;
     const maxVal = Math.max(1, state.settings.weeklyPay, ...data.map(d=>d.spent));
@@ -1107,7 +1107,7 @@
     const total = slices.reduce((s,d)=>s+d.amt,0);
     if(total<=0) return null;
 
-    const size=180, r=72, cx=size/2, cy=size/2, strokeW=26;
+    const size=200, r=78, cx=size/2, cy=size/2, strokeW=28;
     const C = 2*Math.PI*r;
     let offset = 0;
     let circles = "";
@@ -1119,8 +1119,8 @@
     });
     const svg = `<svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
       ${circles}
-      <text x="${cx}" y="${cy-3}" text-anchor="middle" class="val-label" style="font-size:15px;">${fmtShort(total)}</text>
-      <text x="${cx}" y="${cy+14}" text-anchor="middle" class="bar-label" style="font-size:9px;">total spent</text>
+      <text x="${cx}" y="${cy-2}" text-anchor="middle" style="font-size:24px;font-weight:700;fill:var(--text);font-family:inherit;">${fmtShort(total)}</text>
+      <text x="${cx}" y="${cy+18}" text-anchor="middle" style="font-size:12px;fill:var(--muted);font-family:inherit;">total spent</text>
     </svg>`;
 
     const legend = slices
